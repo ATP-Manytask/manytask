@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import logging
 import re
 from collections import defaultdict
@@ -74,7 +73,38 @@ class PublicAccountsSheetOptions:
     NAME_COLUMN: int = 3
     TASK_SCORES_START_COLUMN: int = 4
 
+    # task occupies score and status columns, plus reviewer column if the task is reviewed
     COLUMNS_PER_TASK: int = 3
+    COLUMNS_PER_TASK_WITHOUT_REVIEWER: int = 2
+
+    SCORE_SUBHEADER: str = "score"
+    STATUS_SUBHEADER: str = "status"
+    REVIEWER_SUBHEADER: str = "reviewer"
+
+    @staticmethod
+    def columns_per_task(has_reviewer: bool) -> int:
+        if has_reviewer:
+            return PublicAccountsSheetOptions.COLUMNS_PER_TASK
+        return PublicAccountsSheetOptions.COLUMNS_PER_TASK_WITHOUT_REVIEWER
+
+
+@dataclass
+class TaskColumns:
+    # NB: numeration start with 1
+    score: int
+    has_reviewer: bool
+
+    @property
+    def status(self) -> int:
+        return self.score + 1
+
+    @property
+    def reviewer(self) -> int | None:
+        return self.score + 2 if self.has_reviewer else None
+
+    @property
+    def last(self) -> int:
+        return self.score + PublicAccountsSheetOptions.columns_per_task(self.has_reviewer) - 1
 
 
 class LoginNotFound(KeyError):
@@ -271,6 +301,8 @@ class RatingTable:
 
         result = list()
         header = raw_values[PublicAccountsSheetOptions.HEADER_ROW - 1]
+        subheader = raw_values[PublicAccountsSheetOptions.SUBHEADER_ROW - 1]
+        tasks_columns = self._parse_tasks_columns(header, subheader)
         # logger.info(f"header: {header}")
 
         for row in raw_values[PublicAccountsSheetOptions.STUDENTS_START_ROW:]:
@@ -278,10 +310,40 @@ class RatingTable:
             # logger.info(f"user: {row[PublicAccountsSheetOptions.LOGIN_COLUMN - 1]}")
             for index, value in enumerate(row[:PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1]):
                 user_data["params"][header[index]] = value
-            for index in range(PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1, len(row), PublicAccountsSheetOptions.COLUMNS_PER_TASK):
-                user_data["tasks"][header[index]] = tuple(row[index:index + PublicAccountsSheetOptions.COLUMNS_PER_TASK])
+            for task_name, columns in tasks_columns.items():
+                user_data["tasks"][task_name] = self._get_task_values(row, columns)
             result.append(user_data)
         return result
+
+    @staticmethod
+    def _parse_tasks_columns(header: list[Any], subheader: list[Any]) -> dict[str, TaskColumns]:
+        """Find tasks columns by header (task names) and subheader (score/status/reviewer) rows"""
+        tasks_columns = {}
+        for index in range(PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1, len(header)):
+            task_name = str(header[index]) if header[index] is not None else ""
+            if not task_name:
+                continue
+            reviewer_index = index + 2
+            has_reviewer = (
+                reviewer_index < len(subheader)
+                and str(subheader[reviewer_index]) == PublicAccountsSheetOptions.REVIEWER_SUBHEADER
+            )
+            tasks_columns[task_name] = TaskColumns(score=index + 1, has_reviewer=has_reviewer)
+        return tasks_columns
+
+    @staticmethod
+    def _get_task_values(row: list[Any], columns: TaskColumns) -> tuple[Any, Any, Any]:
+        """Get (score, status, reviewer) of the task from student row, missing values are empty strings"""
+        def get(col: int | None) -> Any:
+            if col is None or col - 1 >= len(row):
+                return ""
+            return row[col - 1]
+        return get(columns.score), get(columns.status), get(columns.reviewer)
+
+    def _get_tasks_columns(self) -> dict[str, TaskColumns]:
+        header = self._get_row_values(PublicAccountsSheetOptions.HEADER_ROW)
+        subheader = self._get_row_values(PublicAccountsSheetOptions.SUBHEADER_ROW)
+        return self._parse_tasks_columns(list(header), list(subheader))
 
     def update_cached_scores(self) -> None:
         _current_timestamp = get_current_time()
@@ -352,16 +414,20 @@ class RatingTable:
         except LoginNotFound:
             student_row = self._add_student_row(student)
 
-        task_column = self._find_task_column(task_name)
+        tasks_columns = self._get_tasks_columns()
+        task_columns = self._find_task_columns(task_name, tasks_columns)
 
-        score_cell = self.ws.cell(student_row, task_column)
+        score_cell = self.ws.cell(student_row, task_columns.score)
         old_score: int | None = int(score_cell.value) if score_cell.value else None
 
-        review_cell = self.ws.cell(student_row, task_column + 1)
+        review_cell = self.ws.cell(student_row, task_columns.status)
         old_review = TaskReviewInfo.from_string(review_cell.value if review_cell.value else "")
 
-        reviewer_cell = self.ws.cell(student_row, task_column + 2)
-        old_reviewer: str | None = reviewer_cell.value if reviewer_cell.value else None
+        reviewer_cell: GCell | None = None
+        old_reviewer: str | None = None
+        if task_columns.reviewer is not None:
+            reviewer_cell = self.ws.cell(student_row, task_columns.reviewer)
+            old_reviewer = reviewer_cell.value if reviewer_cell.value else None
 
         if not TaskReviewStatus.is_review_status(review) and old_score is None:
             new_score = update_fn("")
@@ -376,7 +442,7 @@ class RatingTable:
         logger.info(f"Setting review = {new_review}")
 
         new_reviewer = old_reviewer
-        if new_reviewer is None and review == TaskReviewStatus.SOLVED_WITH_MR:
+        if reviewer_cell is not None and new_reviewer is None and review == TaskReviewStatus.SOLVED_WITH_MR:
             new_reviewer = self.pop_reviewer()
             if not (new_reviewer is None):
                 reviewer_cell.value = new_reviewer
@@ -389,29 +455,23 @@ class RatingTable:
             PublicAccountsSheetOptions.GITLAB_COLUMN,
             self.create_student_repo_link(student),
         )
+        cells_to_update = [repo_link_cell, score_cell, review_cell]
+        if reviewer_cell is not None:
+            cells_to_update.append(reviewer_cell)
         self.ws.update_cells(
-            [repo_link_cell, score_cell, review_cell, reviewer_cell],
+            cells_to_update,
             value_input_option=ValueInputOption.user_entered,
         )
 
-        tasks = self._list_tasks(with_index=False)
-        scores = self._get_row_values(
-            student_row,
-            start=PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1,
-            step=PublicAccountsSheetOptions.COLUMNS_PER_TASK,
-            with_index=False,
-        )
-        student_scores = {task: score for task, score in zip(deepcopy(tasks), scores) if score or str(score) == "0"}
-
-        reviews = self._get_row_values(
-            student_row,
-            start=PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN,
-            step=PublicAccountsSheetOptions.COLUMNS_PER_TASK,
-            with_index=False,
-        )
-        student_reviews = {task: TaskReviewInfo.from_string(review)
-                           for task, review in zip(tasks, reviews) 
-                           if review}
+        row_values = list(self._get_row_values(student_row))
+        student_scores = {}
+        student_reviews = {}
+        for task, columns in tasks_columns.items():
+            score, review_value, _ = self._get_task_values(row_values, columns)
+            if score or str(score) == "0":
+                student_scores[task] = score
+            if review_value:
+                student_reviews[task] = TaskReviewInfo.from_string(review_value)
 
         logger.info(f"Actual scores: {student_scores}")
         logger.info(f"Actual reviews: {student_reviews}")
@@ -431,26 +491,51 @@ class RatingTable:
 
         # TODO: maintain group orger when adding new task in added group
         logger.info("Syncing rating columns...")
-        existing_tasks = list(self._list_tasks(with_index=False))
-        existing_task_names = set(task for task in existing_tasks if task)
-        tasks_to_create = [task for task in tasks if task.name not in existing_task_names]
+        existing_tasks_columns = self._get_tasks_columns()
+        tasks_to_create = [task for task in tasks if task.name not in existing_tasks_columns]
 
-        current_worksheet_size = PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN + len(existing_tasks) * PublicAccountsSheetOptions.COLUMNS_PER_TASK - 1
+        current_worksheet_size = max(
+            [columns.last for columns in existing_tasks_columns.values()],
+            default=PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1,
+        )
         required_worksheet_size = current_worksheet_size
         if tasks_to_create:
-            required_worksheet_size = current_worksheet_size + len(tasks_to_create) * PublicAccountsSheetOptions.COLUMNS_PER_TASK
+            required_worksheet_size = current_worksheet_size + sum(
+                PublicAccountsSheetOptions.columns_per_task(task.has_reviewer) for task in tasks_to_create
+            )
 
             self.ws.resize(cols=required_worksheet_size)
 
             cells_to_update = []
             current_group = None
-            for index, task in enumerate(tasks_to_create):
-                col = current_worksheet_size + 1 + PublicAccountsSheetOptions.COLUMNS_PER_TASK * index
-                cells_to_update.append(GCell(PublicAccountsSheetOptions.HEADER_ROW, col, task.name))
-                cells_to_update.append(GCell(PublicAccountsSheetOptions.SUBHEADER_ROW, col, "score"))
-                cells_to_update.append(GCell(PublicAccountsSheetOptions.SUBHEADER_ROW, col + 1, "status"))
-                cells_to_update.append(GCell(PublicAccountsSheetOptions.SUBHEADER_ROW, col + 2, "reviewer"))
-                cells_to_update.append(GCell(PublicAccountsSheetOptions.MAX_SCORES_ROW, col, str(task.score)))
+            col = current_worksheet_size + 1
+            for task in tasks_to_create:
+                columns = TaskColumns(score=col, has_reviewer=task.has_reviewer)
+                cells_to_update.append(GCell(PublicAccountsSheetOptions.HEADER_ROW, columns.score, task.name))
+                cells_to_update.append(
+                    GCell(
+                        PublicAccountsSheetOptions.SUBHEADER_ROW,
+                        columns.score,
+                        PublicAccountsSheetOptions.SCORE_SUBHEADER,
+                    )
+                )
+                cells_to_update.append(
+                    GCell(
+                        PublicAccountsSheetOptions.SUBHEADER_ROW,
+                        columns.status,
+                        PublicAccountsSheetOptions.STATUS_SUBHEADER,
+                    )
+                )
+                if columns.reviewer is not None:
+                    cells_to_update.append(
+                        GCell(
+                            PublicAccountsSheetOptions.SUBHEADER_ROW,
+                            columns.reviewer,
+                            PublicAccountsSheetOptions.REVIEWER_SUBHEADER,
+                        )
+                    )
+                cells_to_update.append(GCell(PublicAccountsSheetOptions.MAX_SCORES_ROW, columns.score, str(task.score)))
+                col = columns.last + 1
 
                 task_group_name = task_name_to_group_name[task.name]
 
@@ -499,27 +584,15 @@ class RatingTable:
             values = islice(values, start, None, step)
         return values
 
-    def _list_tasks(
-        self,
-        with_index: bool = False,
-    ) -> Iterable[Any]:
-        return self._get_row_values(
-            PublicAccountsSheetOptions.HEADER_ROW,
-            start=PublicAccountsSheetOptions.TASK_SCORES_START_COLUMN - 1,
-            step=PublicAccountsSheetOptions.COLUMNS_PER_TASK,
-            with_index=with_index,
-        )
-
-    def _find_task_column(
-        self,
+    @staticmethod
+    def _find_task_columns(
         task: str,
-    ) -> int:
+        tasks_columns: dict[str, TaskColumns],
+    ) -> TaskColumns:
         logger.info(f'Looking for task "{task}"...')
-        logger.info(list(self._list_tasks()))
-        logger.info(str(task))
-        for col, found_task in self._list_tasks(with_index=True):
-            if task == found_task:
-                return col
+        logger.info(list(tasks_columns.keys()))
+        if task in tasks_columns:
+            return tasks_columns[task]
         raise TaskNotFound(f'Task "{task}" not found in spreadsheet')
 
     def _find_login_row(

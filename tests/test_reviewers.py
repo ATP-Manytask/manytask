@@ -7,7 +7,6 @@ from pydantic import ValidationError
 
 from manytask.config import ManytaskConfig, ManytaskReviewerMode, ManytaskTaskConfig
 
-
 def make_config_data(*tasks: dict[str, Any]) -> dict[str, Any]:
     return {
         "version": 1,
