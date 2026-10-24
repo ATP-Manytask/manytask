@@ -16,7 +16,7 @@ from flask.typing import ResponseReturnValue
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from .config import ManytaskGroupConfig, ManytaskTaskConfig, TaskReviewStatus
+from .config import ManytaskGroupConfig, ManytaskReviewerMode, ManytaskTaskConfig, TaskReviewStatus
 from .course import DEFAULT_TIMEZONE, Course, get_current_time
 
 
@@ -184,7 +184,8 @@ def report_score() -> ResponseReturnValue:
             review = TaskReviewStatus.SOLVED
         else:
             review = TaskReviewStatus.SOLVED_WITH_MR
-            course.rating_table.update_reviewers_list(course.gitlab_api.list_reviewers())
+            if task.reviewer_mode == ManytaskReviewerMode.ANY:
+                course.rating_table.update_reviewers_list(course.gitlab_api.list_reviewers())
 
     if TaskReviewStatus.is_review_status(review):
         job_username = request.form["reported_by"]
@@ -213,7 +214,7 @@ def report_score() -> ResponseReturnValue:
             submit_time=submit_time,
             check_deadline=check_deadline,
         )
-        submission_status = course.rating_table.store_score(student, task.name, update_function, review)
+        submission_status = course.rating_table.store_score(student, task, update_function, review)
 
         if not (merge_request_iid is None) and not (submission_status.reviewer is None):
             reviewer = course.gitlab_api.get_student_by_username(submission_status.reviewer)

@@ -5,7 +5,7 @@ from typing import Any
 from cachelib import SimpleCache
 from gspread import Cell as GCell
 
-from manytask.config import ManytaskDeadlinesConfig
+from manytask.config import ManytaskDeadlinesConfig, ManytaskReviewerMode, ManytaskTaskConfig, TaskReviewStatus
 from manytask.gdoc import PublicAccountsSheetOptions, RatingTable, TaskColumns
 from manytask.glab import Student
 
@@ -72,6 +72,9 @@ def make_table(tasks: list[tuple[str, bool]]) -> tuple[RatingTable, FakeWorkshee
     ws = FakeWorksheet([[], [], header, subheader, student])
     return RatingTable(ws, SimpleCache()), ws  # type: ignore[arg-type]
 
+def store(table: RatingTable, task: ManytaskTaskConfig, review: TaskReviewStatus) -> RatingTable.SubmissionStatus:
+    return table.store_score(STUDENT, task, lambda _: task.score, review)
+
 class TestTasksColumns:
     def test_parse_mixed_layout(self) -> None:
         table, ws = make_table([("a", True), ("b", False), ("c", True)])
@@ -116,3 +119,67 @@ class TestTasksColumns:
         ws.cells.update({(STUDENT_ROW + 1, c): v for (r, c), v in ws.cells.items() if r == STUDENT_ROW})
         [user_data] = table._gather_worksheet_data()
         assert user_data["tasks"] == {"a": ("10", "+", ""), "b": ("5", "", "t")}
+
+class TestStoreScore:
+    def test_none_reviewer_accepts_on_pass(self) -> None:
+        task = ManytaskTaskConfig(task="a", score=10, reviewer_mode=ManytaskReviewerMode.NONE)
+        table, ws = make_table([("a", False), ("b", True)])
+        table.update_reviewers_list(["reviewer"])
+
+        status = store(table, task, TaskReviewStatus.SOLVED_WITH_MR)
+
+        assert status.score == 10
+        assert status.review == f"'{TaskReviewStatus.ACCEPTED.value}"
+        assert status.reviewer is None
+        # nothing is written to the next task columns
+        assert (STUDENT_ROW, 6) not in ws.cells
+        assert table.get_reviews(STUDENT.username)["a"].status == TaskReviewStatus.ACCEPTED
+        assert table.get_scores(STUDENT.username) == {"a": 10}
+
+    def test_none_reviewer_with_legacy_reviewer_column(self) -> None:
+        task = ManytaskTaskConfig(task="a", score=10, reviewer_mode=ManytaskReviewerMode.NONE)
+        table, ws = make_table([("a", True)])
+        table.update_reviewers_list(["reviewer"])
+
+        status = store(table, task, TaskReviewStatus.SOLVED_WITH_MR)
+
+        assert status.review == f"'{TaskReviewStatus.ACCEPTED.value}"
+        assert status.reviewer is None
+        assert (STUDENT_ROW, 6) not in ws.cells
+
+    def test_concrete_reviewer(self) -> None:
+        task = ManytaskTaskConfig(
+            task="a", score=10, reviewer_mode=ManytaskReviewerMode.CONCRETE, reviewer_login="teacher"
+        )
+        table, ws = make_table([("a", True)])
+        table.update_reviewers_list(["reviewer"])
+
+        status = store(table, task, TaskReviewStatus.SOLVED_WITH_MR)
+
+        assert status.review == f"'{TaskReviewStatus.SOLVED_WITH_MR.value}"
+        assert status.reviewer == "teacher"
+        assert ws.cells[(STUDENT_ROW, 6)] == "teacher"
+        # round-robin queue is untouched
+        assert table._get_reviewers_queue() == ["reviewer"]
+
+    def test_concrete_reviewer_without_merge_request(self) -> None:
+        task = ManytaskTaskConfig(
+            task="a", score=10, reviewer_mode=ManytaskReviewerMode.CONCRETE, reviewer_login="teacher"
+        )
+        table, ws = make_table([("a", True)])
+
+        status = store(table, task, TaskReviewStatus.SOLVED)
+
+        assert status.reviewer is None
+        assert (STUDENT_ROW, 6) not in ws.cells
+
+    def test_any_reviewer(self) -> None:
+        task = ManytaskTaskConfig(task="a", score=10)
+        table, ws = make_table([("a", True)])
+        table.update_reviewers_list(["r1", "r2"], check_order=False)
+
+        status = store(table, task, TaskReviewStatus.SOLVED_WITH_MR)
+
+        assert status.review == f"'{TaskReviewStatus.SOLVED_WITH_MR.value}"
+        assert status.reviewer == "r1"
+        assert table._get_reviewers_queue() == ["r2", "r1"]

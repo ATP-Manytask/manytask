@@ -14,7 +14,14 @@ from google.auth.credentials import AnonymousCredentials
 from gspread import Cell as GCell
 from gspread.utils import ValueInputOption, ValueRenderOption, a1_to_rowcol, rowcol_to_a1
 
-from .config import ManytaskConfig, ManytaskDeadlinesConfig, TaskReviewStatus, TaskReviewInfo
+from .config import (
+    ManytaskConfig,
+    ManytaskDeadlinesConfig,
+    ManytaskReviewerMode,
+    ManytaskTaskConfig,
+    TaskReviewInfo,
+    TaskReviewStatus,
+)
 from .course import get_current_time
 from .glab import Student
 
@@ -405,7 +412,7 @@ class RatingTable:
     def store_score(
         self,
         student: Student,
-        task_name: str,
+        task: ManytaskTaskConfig,
         update_fn: Callable[..., Any],
         review: TaskReviewStatus,
     ) -> SubmissionStatus:
@@ -415,7 +422,7 @@ class RatingTable:
             student_row = self._add_student_row(student)
 
         tasks_columns = self._get_tasks_columns()
-        task_columns = self._find_task_columns(task_name, tasks_columns)
+        task_columns = self._find_task_columns(task.name, tasks_columns)
 
         score_cell = self.ws.cell(student_row, task_columns.score)
         old_score: int | None = int(score_cell.value) if score_cell.value else None
@@ -431,19 +438,33 @@ class RatingTable:
 
         if not TaskReviewStatus.is_review_status(review) and old_score is None:
             new_score = update_fn("")
-            new_review = old_review
             score_cell.value = new_score
             logger.info(f"Setting score = {new_score}")
         else:
             new_score = old_score if old_score else 0
 
-        new_review = self._format_review(old_review, review)
+        # task without review is accepted as soon as tests are passed
+        if task.reviewer_mode == ManytaskReviewerMode.NONE and not TaskReviewStatus.is_review_status(review):
+            new_review = self._format_review(old_review, TaskReviewStatus.ACCEPTED)
+        else:
+            new_review = self._format_review(old_review, review)
         review_cell.value = new_review
         logger.info(f"Setting review = {new_review}")
 
+        if task.has_reviewer and reviewer_cell is None:
+            logger.warning(f"Task {task.name} has no reviewer column in spreadsheet, reviewer is not set")
+
         new_reviewer = old_reviewer
-        if reviewer_cell is not None and new_reviewer is None and review == TaskReviewStatus.SOLVED_WITH_MR:
-            new_reviewer = self.pop_reviewer()
+        if (
+            task.has_reviewer
+            and reviewer_cell is not None
+            and new_reviewer is None
+            and review == TaskReviewStatus.SOLVED_WITH_MR
+        ):
+            if task.reviewer_mode == ManytaskReviewerMode.CONCRETE:
+                new_reviewer = task.reviewer_login
+            else:
+                new_reviewer = self.pop_reviewer()
             if not (new_reviewer is None):
                 reviewer_cell.value = new_reviewer
                 logger.info(f"Setting reviewer = {new_reviewer}")
@@ -466,12 +487,12 @@ class RatingTable:
         row_values = list(self._get_row_values(student_row))
         student_scores = {}
         student_reviews = {}
-        for task, columns in tasks_columns.items():
+        for task_name, columns in tasks_columns.items():
             score, review_value, _ = self._get_task_values(row_values, columns)
             if score or str(score) == "0":
-                student_scores[task] = score
+                student_scores[task_name] = score
             if review_value:
-                student_reviews[task] = TaskReviewInfo.from_string(review_value)
+                student_reviews[task_name] = TaskReviewInfo.from_string(review_value)
 
         logger.info(f"Actual scores: {student_scores}")
         logger.info(f"Actual reviews: {student_reviews}")
