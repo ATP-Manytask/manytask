@@ -3,9 +3,19 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from cachelib import SimpleCache
 from pydantic import ValidationError
 
 from manytask.config import ManytaskConfig, ManytaskReviewerMode, ManytaskTaskConfig
+from manytask.course import Course
+
+
+class FakeGitLabApi:
+    def __init__(self, reviewers: list[str]) -> None:
+        self.reviewers = reviewers
+
+    def is_reviewer_username(self, username: str) -> bool:
+        return username in self.reviewers
 
 def make_config_data(*tasks: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -76,3 +86,33 @@ def test_get_concrete_reviewer_logins() -> None:
         )
     )
     assert config.get_concrete_reviewer_logins() == {"teacher", "other"}
+
+
+class TestCheckReviewers:
+    @staticmethod
+    def make_course(reviewers: list[str]) -> Course:
+        return Course(
+            None, FakeGitLabApi(reviewers), None, "", "", False, SimpleCache()  # type: ignore[arg-type]
+        )
+
+    def test_store_config_with_valid_reviewers(self) -> None:
+        course = self.make_course(["teacher"])
+        course.store_config(
+            make_config_data(
+                {"task": "a", "score": 1},
+                {"task": "b", "score": 1, "reviewer_mode": "none"},
+                {"task": "c", "score": 1, "reviewer_mode": "concrete", "reviewer_login": "teacher"},
+            )
+        )
+        assert course.config is not None
+
+    def test_store_config_with_unknown_reviewer(self) -> None:
+        course = self.make_course(["teacher"])
+        # disabled tasks are checked as well
+        data = make_config_data(
+            {"task": "a", "score": 1, "reviewer_mode": "concrete", "reviewer_login": "teacher"},
+            {"task": "b", "score": 1, "reviewer_mode": "concrete", "reviewer_login": "stranger"},
+        )
+        with pytest.raises(ValueError, match="stranger"):
+            course.store_config(data)
+        assert course.config is None

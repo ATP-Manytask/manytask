@@ -9,7 +9,6 @@ from manytask.config import ManytaskDeadlinesConfig, ManytaskReviewerMode, Manyt
 from manytask.gdoc import PublicAccountsSheetOptions, RatingTable, TaskColumns
 from manytask.glab import Student
 
-
 class FakeWorksheet:
     """In-memory replacement of gspread.Worksheet, supports only methods used by RatingTable"""
 

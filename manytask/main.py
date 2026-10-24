@@ -190,6 +190,12 @@ def create_app(*, debug: bool | None = None, test: bool = False) -> CustomFlask:
         with open(".manytask.example.yml", "r") as f:
             debug_manytask_config_data = yaml.load(f, Loader=yaml.SafeLoader)
         app.course.store_config(debug_manytask_config_data)
+    elif not test and (cached_config := app.course.config) is not None:
+        # config stored before restart could become outdated, e.g. reviewer lost access to the course
+        try:
+            app.course.check_reviewers(cached_config)
+        except Exception as e:
+            logger.error(f"Stored config check failed: {e}")
 
     logger.info("Init success")
 

@@ -101,8 +101,19 @@ class Course:
 
     def store_config(self, content: dict[str, Any]) -> None:
         # For validation purposes
-        ManytaskConfig(**content)
+        manytask_config = ManytaskConfig(**content)
+        self.check_reviewers(manytask_config)
         self._cache.set("__config__", content)
+
+    def check_reviewers(self, manytask_config: ManytaskConfig) -> None:
+        """Check that all `concrete` reviewers of the config are course reviewers"""
+        bad_logins = sorted(
+            login
+            for login in manytask_config.get_concrete_reviewer_logins()
+            if not self.gitlab_api.is_reviewer_username(login)
+        )
+        if bad_logins:
+            raise ValueError(f"Reviewer logins are not course reviewers: {bad_logins}")
 
     @property
     def rating_table(self) -> "gdoc.RatingTable":

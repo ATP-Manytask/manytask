@@ -41,8 +41,9 @@ deadlines:
           reviewer_mode: none  # none / any (default) / concrete
         - task: task_0_1
           score: 10
-          reviewer_mode: concrete
-          reviewer_login: some_teacher_login  # required for concrete reviewer_mode only
+          # reviewer should be a course reviewer, otherwise config is rejected
+          # reviewer_mode: concrete
+          # reviewer_login: some_teacher_login  # required for concrete reviewer_mode only
         - task: task_0_2
           is_bonus: true
           score: 10

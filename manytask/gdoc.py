@@ -443,11 +443,7 @@ class RatingTable:
         else:
             new_score = old_score if old_score else 0
 
-        # task without review is accepted as soon as tests are passed
-        if task.reviewer_mode == ManytaskReviewerMode.NONE and not TaskReviewStatus.is_review_status(review):
-            new_review = self._format_review(old_review, TaskReviewStatus.ACCEPTED)
-        else:
-            new_review = self._format_review(old_review, review)
+        new_review = self._format_review(old_review, review)
         review_cell.value = new_review
         logger.info(f"Setting review = {new_review}")
 
@@ -460,6 +456,7 @@ class RatingTable:
             and reviewer_cell is not None
             and new_reviewer is None
             and review == TaskReviewStatus.SOLVED_WITH_MR
+            and task.reviewer_mode != ManytaskReviewerMode.NONE
         ):
             if task.reviewer_mode == ManytaskReviewerMode.CONCRETE:
                 new_reviewer = task.reviewer_login

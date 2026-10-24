@@ -294,6 +294,17 @@ class GitLabApi:
         except gitlab.GitlabCreateError:
             logger.info(f"Admin access is already granted to group {self._course_students_group} for user {student.username}")
 
+    def is_reviewer_username(
+        self,
+        username: str,
+    ) -> bool:
+        try:
+            student = self.get_student_by_username(username)
+        except GitLabApiException:
+            logger.info(f"Cannot find user {username}")
+            return False
+        return self.is_reviewer(student)
+
     def is_reviewer(
         self,
         student: Student,
