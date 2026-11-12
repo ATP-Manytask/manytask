@@ -12,7 +12,7 @@ from tests.sheets import Workbook
 def test_create_app_loads_yaml_and_uses_its_tester_token(tmp_path, monkeypatch, debug):
     config = yaml.safe_load((main.PROJECT_ROOT / ".app.config.example.yaml").read_text(encoding="utf-8"))
     config["credentials"] = {
-        "secrets": {"student": "students", "admin": "admins"},
+        "secrets": {"student": "students", "reviewer": "reviewers", "admin": "admins"},
         "flask_token": "session-key",
         "tester_token": "yaml-token",
     }

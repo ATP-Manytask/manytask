@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from functools import cached_property
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,7 @@ from .app_config import AppSecretsConfig, AppWorksheetsNames
 from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
 from .gdoc import GoogleDocApi
 from .glab import GitLabApi
+from .reviewers_table import ReviewersTable
 from .solutions import SolutionsApi
 
 
@@ -104,10 +106,16 @@ class Course:
         ManytaskConfig(**content)
         self._cache.set("__config__", content)
 
-    @property
+    @cached_property
     def rating_table(self) -> "RatingTable":
         return RatingTable(
             self.googledoc_api.get_worksheet(self.worksheets_names.scoreboard),
             self._cache,
             self.worksheets_names.events,
+        )
+
+    @property
+    def reviewers_table(self) -> "ReviewersTable":
+        return ReviewersTable(
+            self.googledoc_api.spreadsheet, self.worksheets_names.reviewers,
         )

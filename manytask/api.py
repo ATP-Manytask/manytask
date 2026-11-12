@@ -17,7 +17,7 @@ from werkzeug.utils import secure_filename
 
 from .course_config.config import ManytaskGroupConfig, ManytaskTaskConfig
 from .course import DEFAULT_TIMEZONE, Course, get_current_time
-from .review import ReviewEvent, parse_manual_review_action
+from .review import ReviewEvent, ReviewStage, parse_manual_review_action
 
 
 logger = logging.getLogger(__name__)
@@ -180,16 +180,17 @@ def report_score() -> ResponseReturnValue:
         return "Automatic review events are derived from the reported score", 400
     action = parse_manual_review_action(request_type)
     merge_request_iid = request.form.get("merge_request_iid", "").strip() or None
+    reviewers = course.reviewers_table.get_reviewers_logins()
     if action is not None:
         job_username = request.form.get("reported_by")
         if not job_username:
             return "You didn't provide required attribute `reported_by`", 400
         job_student = course.gitlab_api.get_student_by_username(job_username)
-        if not course.gitlab_api.is_reviewer(job_student):
+        if job_student.username not in reviewers:
             return "You are not allowed to run review job", 403
 
     submission_status = course.rating_table.SubmissionStatus(0, "", "")
-    if not course.gitlab_api.is_reviewer(student):
+    if student.username not in reviewers:
         submit_time = submit_time or course.deadlines.get_now_with_timezone()
         submit_time = submit_time.astimezone(ZoneInfo(course.deadlines.timezone))
 
@@ -212,12 +213,12 @@ def report_score() -> ResponseReturnValue:
         successful = reported_score >= task.score
         event = action or (ReviewEvent.TESTS_PASSED if successful else ReviewEvent.TESTS_FAILED)
         if action is None and successful and merge_request_iid is not None:
-            course.rating_table.update_reviewers_list(course.gitlab_api.list_reviewers())
+            course.rating_table.update_reviewers_list(reviewers)
         try:
             submission_status = course.rating_table.store_score(
                 student, task.name, update_function, event,
                 oral_attempt_limit=course.deadlines.oral_attempt_limit,
-                review_stages=task.review_stages,
+                review_stages=tuple(ReviewStage(stage.value) for stage in task.review_stages),
                 group_name=group.name,
                 at=course.deadlines.get_now_with_timezone() if action is not None else submit_time,
                 has_merge_request=merge_request_iid is not None,

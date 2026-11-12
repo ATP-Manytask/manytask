@@ -7,6 +7,7 @@ import yaml
 from flask import Flask
 
 from manytask.review import MANUAL_REVIEW_EVENTS
+from manytask.reviewers_table import ReviewersTable
 from tests.sheets import course_config, student
 from tests.test_review_storage import table  # noqa: F401
 
@@ -20,10 +21,10 @@ def api(table):
     app.app_config = SimpleNamespace(credentials=SimpleNamespace(tester_token='test-token'))
     gitlab = Mock()
     gitlab.get_student_by_username.side_effect = student
-    gitlab.is_reviewer.side_effect = lambda s: s.username == 'assistant'
-    gitlab.list_reviewers.return_value = ['assistant']
+    reviewers = ReviewersTable(table.ws.spreadsheet, "reviewers")
+    reviewers.make_reviewer(student("assistant"))
     app.course = SimpleNamespace(config=config, deadlines=config.deadlines, rating_table=table,
-                                 gitlab_api=gitlab, solutions_api=Mock())
+                                 gitlab_api=gitlab, solutions_api=Mock(), reviewers_table=reviewers)
     app.register_blueprint(module.bp)
     return app.test_client(), app.course
 
@@ -55,7 +56,7 @@ def test_empty_mr_does_not_start_review(api, mr):
     api[1].rating_table.ws.spreadsheet.batch_update.reset_mock()
     assert report(api, request_type='request_oral', reported_by='assistant').status_code == 409
     api[1].rating_table.ws.spreadsheet.batch_update.assert_not_called()
-    api[1].gitlab_api.list_reviewers.assert_not_called()
+    assert api[1].rating_table.get_reviewers_queue() == []
 
 
 @pytest.mark.parametrize('score', ['0', '5', '0.5'])
@@ -175,3 +176,10 @@ def test_disabled_stage_api_error_has_no_writes(api, stage, forbidden):
     assert result.status_code == 409
     assert 'disabled' in result.text
     workbook.batch_update.assert_not_called()
+
+
+def test_removed_reviewer_cannot_authorize_from_cached_queue(api):
+    _, course = api
+    course.rating_table.update_reviewers_list(['assistant'])
+    course.reviewers_table.worksheet.rows[1:] = []
+    assert report(api, request_type='accept', reported_by='assistant').status_code == 403

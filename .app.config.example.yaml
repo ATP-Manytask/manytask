@@ -3,6 +3,7 @@ version: 1
 credentials:
   secrets:
     student:
+    reviewer:
     admin:
 
   flask_token:
@@ -29,6 +30,7 @@ gsheets:
   sheets:
     scoreboard: scoreboard
     events: review_details
+    reviewers: reviewers
 
   show_allscores: true
 

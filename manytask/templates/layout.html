@@ -107,9 +107,11 @@
         </div>
     </nav>
 
-    {#  Floating form with ADMIN label if so  #}
-    {% if is_course_admin %}
-        <div class="admin-label fs-7">ADMIN</div>
+    {% if is_course_admin or is_course_reviewer %}
+        <div class="admin-label fs-7">
+            {% if is_course_admin %}ADMIN{% endif %}
+            {% if is_course_reviewer %}REVIEWER{% endif %}
+        </div>
     {% endif %}
 
     <div class="px-3 container-lg">
