@@ -47,11 +47,11 @@ services:
         restart: always
         expose:
             - "5050"
-        env_file: .env
         environment:
             VIRTUAL_HOST: py.manytask.org
             VIRTUAL_PORT: 5050
             LETSENCRYPT_HOST: py.manytask.org
         volumes:
+            - ./app.config.yaml:/app/app.config.yaml:ro
             - cache:/cache
             - solutions:/solutions

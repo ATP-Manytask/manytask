@@ -12,13 +12,12 @@ from tests.test_review_storage import table  # noqa: F401
 
 
 @pytest.fixture
-def api(monkeypatch, table):
-    monkeypatch.setenv('TESTER_TOKEN', 'test-token')
+def api(table):
     from manytask import api as module
-    monkeypatch.setattr(module, 'TESTER_TOKEN', 'test-token')
     config = course_config()
     app = Flask(__name__)
     app.config['TESTING'] = True
+    app.app_config = SimpleNamespace(credentials=SimpleNamespace(tester_token='test-token'))
     gitlab = Mock()
     gitlab.get_student_by_username.side_effect = student
     gitlab.is_reviewer.side_effect = lambda s: s.username == 'assistant'
@@ -119,7 +118,7 @@ def test_summary_failure_after_acceptance_is_still_success(api):
 
 def test_api_preserves_instants_and_uses_server_time_for_manual_review(api, monkeypatch):
     from datetime import datetime, timezone
-    from manytask.config import ManytaskDeadlinesConfig
+    from manytask.course_config.config import ManytaskDeadlinesConfig
     from manytask.review_sheet import REVIEW_DETAILS_COLUMNS
     now = datetime(2026, 1, 3, tzinfo=timezone.utc)
     monkeypatch.setattr(ManytaskDeadlinesConfig, 'get_now_with_timezone', lambda _: now)
