@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from cachelib import BaseCache
 
-from .config import ManytaskConfig, ManytaskDeadlinesConfig
+from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def validate_submit_time(commit_time: datetime | None, current_time: datetime) -
     return current_time
 
 
-from . import config, gdoc, glab, rating_table, solutions  # noqa: E402, F401
+from . import gdoc, glab, rating_table, solutions  # noqa: E402, F401
 
 
 class Course:

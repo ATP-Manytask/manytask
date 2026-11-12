@@ -1,0 +1,3 @@
+[submodule "manytask/course_config"]
+	path = manytask/course_config
+	url = git@github.com:ATP-Manytask/course-config.git

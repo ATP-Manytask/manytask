@@ -16,7 +16,7 @@ from flask.typing import ResponseReturnValue
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from .config import ManytaskGroupConfig, ManytaskTaskConfig
+from .course_config.config import ManytaskGroupConfig, ManytaskTaskConfig
 from .course import DEFAULT_TIMEZONE, Course, get_current_time
 from .review import ReviewEvent, parse_manual_review_action
 

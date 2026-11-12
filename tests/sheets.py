@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import gspread
 from gspread.utils import rowcol_to_a1
 
-from manytask.config import ManytaskConfig
+from manytask.course_config.config import ManytaskConfig
 
 
 def course_config(groups=None):
