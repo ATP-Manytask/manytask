@@ -5,14 +5,14 @@ import pytest
 import yaml
 
 from manytask import main
+from tests.sheets import Workbook
 
 
 @pytest.mark.parametrize("debug", [False, True])
 def test_create_app_loads_yaml_and_uses_its_tester_token(tmp_path, monkeypatch, debug):
     config = yaml.safe_load((main.PROJECT_ROOT / ".app.config.example.yaml").read_text(encoding="utf-8"))
     config["credentials"] = {
-        "student_secret": "students",
-        "admin_secret": "admins",
+        "secrets": {"student": "students", "admin": "admins"},
         "flask_token": "session-key",
         "tester_token": "yaml-token",
     }
@@ -27,6 +27,9 @@ def test_create_app_loads_yaml_and_uses_its_tester_token(tmp_path, monkeypatch, 
 
     gitlab = Mock()
     gsheets = Mock()
+    workbook = Workbook()
+    workbook.add_worksheet("scoreboard", rows=100, cols=26)
+    gsheets.return_value.get_worksheet.side_effect = workbook.worksheet
     monkeypatch.setattr(main.glab, "GitLabApi", gitlab)
     monkeypatch.setattr(main.gdoc, "GoogleDocApi", gsheets)
     monkeypatch.setattr(main.logging.config, "dictConfig", Mock())

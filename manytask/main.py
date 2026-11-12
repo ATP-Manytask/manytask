@@ -133,9 +133,7 @@ def create_app(
     gdoc_api = gdoc.GoogleDocApi(
         base_url=app.app_config.gsheets.base_url.encoded_string().rstrip("/"),
         gdoc_credentials=app.app_config.gsheets.credentials_json,
-        public_worksheet_id=app.app_config.gsheets.spreadsheet_id,
-        public_scoreboard_sheet=app.app_config.gsheets.scoreboard_sheet,
-        cache=cache,
+        spreadsheet_id=app.app_config.gsheets.spreadsheet_id,
     )
     solutions_api = solutions.SolutionsApi(
         base_folder=app.app_config.mount.solutions,
@@ -154,8 +152,8 @@ def create_app(
         gdoc_api,
         gitlab_api,
         solutions_api,
-        app.app_config.credentials.student_secret,
-        app.app_config.credentials.admin_secret,
+        app.app_config.credentials.secrets,
+        app.app_config.gsheets.sheets,
         app.app_config.gsheets.show_allscores,
         cache,
         manytask_version=manytask_version,

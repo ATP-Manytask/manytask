@@ -52,12 +52,12 @@ class ReviewTimestamps:
 
 
 class ReviewDetailsSheet:
-    def __init__(self, spreadsheet: gspread.Spreadsheet):
+    def __init__(self, spreadsheet: gspread.Spreadsheet, title: str = REVIEW_DETAILS_SHEET):
         self.spreadsheet = spreadsheet
         try:
-            self.ws = spreadsheet.worksheet(REVIEW_DETAILS_SHEET)
+            self.ws = spreadsheet.worksheet(title)
         except gspread.WorksheetNotFound:
-            self.ws = spreadsheet.add_worksheet(REVIEW_DETAILS_SHEET, rows=1000, cols=len(REVIEW_DETAILS_COLUMNS))
+            self.ws = spreadsheet.add_worksheet(title, rows=1000, cols=len(REVIEW_DETAILS_COLUMNS))
         header = self.ws.row_values(1)
         if not header:
             self.ws.update_cells([gspread.Cell(1, column, name)
