@@ -190,11 +190,12 @@ def report_score() -> ResponseReturnValue:
         if not job_username:
             return "You didn't provide required attribute `reported_by`", 400
         job_student = course.gitlab_api.get_student_by_username(job_username)
-        if not course.gitlab_api.is_reviewer(job_student):
+        job_student.course_reviewer = job_username in course.rating_table.get_reviewers_queue()
+        if not course.reviewers_table.is_reviewer(job_student):
             return "You are not allowed to run review job", 403
 
     submission_status = course.rating_table.SubmissionStatus(0, "", "")
-    if not course.gitlab_api.is_reviewer(student):
+    if not course.reviewers_table.is_reviewer(student):
         submit_time = submit_time or course.deadlines.get_now_with_timezone()
         submit_time = submit_time.astimezone(ZoneInfo(course.deadlines.timezone))
 
@@ -217,7 +218,7 @@ def report_score() -> ResponseReturnValue:
         successful = reported_score >= task.score
         event = action or (ReviewEvent.TESTS_PASSED if successful else ReviewEvent.TESTS_FAILED)
         if action is None and successful and merge_request_iid is not None:
-            course.rating_table.update_reviewers_list(course.gitlab_api.list_reviewers())
+            course.rating_table.update_reviewers_list(course.reviewers_table.get_reviewers_logins())
         try:
             submission_status = course.rating_table.store_score(
                 student, task.name, update_function, event,
@@ -226,6 +227,7 @@ def report_score() -> ResponseReturnValue:
                 group_name=group.name,
                 at=course.deadlines.get_now_with_timezone() if action is not None else submit_time,
                 has_merge_request=merge_request_iid is not None,
+                events_table=course.events_table,
             )
         except ValueError as error:
             return str(error), 409

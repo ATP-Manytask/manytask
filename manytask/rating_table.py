@@ -13,7 +13,7 @@ from cachelib import BaseCache
 from gspread import Worksheet
 from gspread.utils import ValueInputOption, ValueRenderOption, a1_to_rowcol, absolute_range_name
 
-from .config import ManytaskConfig, ManytaskDeadlinesConfig
+from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
 from .course import get_current_time
 from .glab import Student
 from .review import DEFAULT_REVIEW_STAGES, ReviewEvent, ReviewStage, ReviewState, ReviewStatus, transition
@@ -104,6 +104,10 @@ class RatingTable:
         self._cache = cache
         self.ws = worksheet
 
+    @property
+    def url(self) -> str:
+        return self.ws.url
+
     def get_scores(
         self,
         username: str,
@@ -121,7 +125,7 @@ class RatingTable:
     ) -> None:
         updated_reviewers = []
         if check_order:
-            current_reviewers = self._get_reviewers_queue()
+            current_reviewers = self.get_reviewers_queue()
             preserved_reviewers = [
                 name for name in current_reviewers if name in reviewers]
             new_reviewers = [name for name in reviewers if not (
@@ -134,7 +138,7 @@ class RatingTable:
     def pop_reviewer(
         self,
     ) -> str | None:
-        current_reviewers = self._get_reviewers_queue()
+        current_reviewers = self.get_reviewers_queue()
         if not current_reviewers:
             return None
         logger.info(f"Reviewers order = {current_reviewers}")
@@ -143,7 +147,7 @@ class RatingTable:
             current_reviewers[1:] + [reviewer], check_order=False)
         return reviewer
 
-    def _get_reviewers_queue(
+    def get_reviewers_queue(
         self,
     ) -> list[str]:
         reviewers = self._cache.get(f"{self.ws.id}:reviewers")
@@ -311,6 +315,7 @@ class RatingTable:
         at: datetime,
         has_merge_request: bool = False,
         review_stages: tuple[ReviewStage, ...] = DEFAULT_REVIEW_STAGES,
+        events_table: ReviewDetailsSheet,
     ) -> SubmissionStatus:
         if at.utcoffset() is None:
             raise ValueError("Review timestamps must include a timezone")
@@ -351,7 +356,7 @@ class RatingTable:
         self.update_scores(student.username, scores)
         self.update_reviews(student.username, reviews)
         try:
-            ReviewDetailsSheet(self.ws.spreadsheet).record(
+            events_table.record(
                 student.username, task_name, group_name, old_state, new_state, event, at,
             )
         except Exception:

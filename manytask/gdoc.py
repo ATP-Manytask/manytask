@@ -4,10 +4,7 @@ from typing import Any
 
 import gspread
 from authlib.integrations.requests_client import AssertionSession
-from cachelib import BaseCache
 from google.auth.credentials import AnonymousCredentials
-
-from .rating_table import RatingTable
 
 
 class GoogleDocApi:
@@ -15,9 +12,7 @@ class GoogleDocApi:
         self,
         base_url: str,
         gdoc_credentials: dict[str, Any],
-        public_worksheet_id: str,
-        public_scoreboard_sheet: int,
-        cache: BaseCache,
+        spreadsheet_id: str,
     ):
         """
         :param base_url:
@@ -28,13 +23,9 @@ class GoogleDocApi:
         """
         self._url = base_url
         self._gdoc_credentials = gdoc_credentials
-        self._public_worksheet_id = public_worksheet_id
-        self._public_scoreboard_sheet = public_scoreboard_sheet
+        self._spreadsheet_id = spreadsheet_id
 
         self._assertion_session = self._create_assertion_session()
-
-        self._public_scores_sheet = self._get_sheet(public_worksheet_id, public_scoreboard_sheet)
-        self._cache = cache
 
     def _create_assertion_session(self) -> AssertionSession:
         """Create AssertionSession to auto refresh access to google api"""
@@ -62,17 +53,10 @@ class GoogleDocApi:
             header=header,
         )
 
-    def _get_sheet(
+    def get_worksheet(
         self,
         worksheet_id: str,
-        sheet_id: int,
     ) -> gspread.Worksheet:
         gs: gspread.Client = gspread.Client(AnonymousCredentials(), session=self._assertion_session)
-        worksheet: gspread.Spreadsheet = gs.open_by_key(worksheet_id)
-        return worksheet.get_worksheet(sheet_id)
-
-    def fetch_rating_table(self) -> "RatingTable":
-        return RatingTable(self._public_scores_sheet, self._cache)
-
-    def get_spreadsheet_url(self) -> str:
-        return f"{self._url}/spreadsheets/d/{self._public_worksheet_id}#gid={self._public_scoreboard_sheet}"
+        spreadsheet: gspread.Spreadsheet = gs.open_by_key(self._spreadsheet_id)
+        return spreadsheet.worksheet(worksheet_id)

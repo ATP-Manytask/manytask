@@ -1,0 +1,39 @@
+version: 1
+
+credentials:
+  secrets:
+    student:
+    reviewer:
+    admin:
+
+  flask_token:
+  tester_token:
+
+gitlab:
+  base_url: https://gitlab.com
+  admin_token:
+
+  course_group: [course-name]
+  public_repo: public-[year]-[fall/spring]
+  students_group: students-[year]-[fall/spring]
+
+  default_branch: main
+
+  application_id:
+  application_secret:
+
+gsheets:
+  base_url: https://docs.google.com
+  credentials_base64:
+  spreadsheet_id:
+
+  sheets:
+    scoreboard:
+    events:
+    reviewers:
+
+  show_allscores:
+
+mount:
+  cache:
+  solutions:
