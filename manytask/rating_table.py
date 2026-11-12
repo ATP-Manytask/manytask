@@ -13,7 +13,7 @@ from cachelib import BaseCache
 from gspread import Worksheet
 from gspread.utils import ValueInputOption, ValueRenderOption, a1_to_rowcol, absolute_range_name
 
-from .config import ManytaskConfig, ManytaskDeadlinesConfig
+from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
 from .course import get_current_time
 from .glab import Student
 from .review import DEFAULT_REVIEW_STAGES, ReviewEvent, ReviewStage, ReviewState, ReviewStatus, transition
