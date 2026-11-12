@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class LocalConfig:
+class ApplicationConfig:
     # tokens
     registration_secret: str
     admin_registration_secret: str
@@ -36,7 +36,7 @@ class LocalConfig:
     show_allscores: bool
 
     @classmethod
-    def from_env(cls) -> LocalConfig:
+    def from_env(cls) -> ApplicationConfig:
         return cls(
             # tokens
             registration_secret=os.environ["REGISTRATION_SECRET"],
@@ -67,7 +67,7 @@ class LocalConfig:
 
 
 @dataclass
-class DebugLocalConfig(LocalConfig):
+class DebugApplicationConfig(ApplicationConfig):
     # tokens
     registration_secret: str = "registration_secret"
     admin_registration_secret: str = "admin_registration_secret"
@@ -99,7 +99,7 @@ class DebugLocalConfig(LocalConfig):
     show_allscores: bool = True
 
     @classmethod
-    def from_env(cls) -> LocalConfig:
+    def from_env(cls) -> ApplicationConfig:
         return cls(
             gdoc_url="https://docs.google.com",
             gdoc_account_credentials_base64=os.environ["GDOC_ACCOUNT_CREDENTIALS_BASE64"],
@@ -110,7 +110,7 @@ class DebugLocalConfig(LocalConfig):
 
 
 @dataclass
-class TestConfig(DebugLocalConfig):
+class TestApplicationConfig(DebugApplicationConfig):
     # google sheets
     gdoc_url: str = ""
     gdoc_account_credentials_base64: str = ""

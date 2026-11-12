@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import course, gdoc, glab, local_config, solutions
+from . import app_config, course, gdoc, glab, solutions
 
 
 load_dotenv("../.env")  # take environment variables from .env.
@@ -22,7 +22,7 @@ load_dotenv("../.env")  # take environment variables from .env.
 class CustomFlask(Flask):
     course: course.Course
     oauth: OAuth
-    app_config: local_config.LocalConfig  # TODO: check if we need it
+    app_config: app_config.ApplicationConfig  # TODO: check if we need it
 
 
 def create_app(*, debug: bool | None = None, test: bool = False) -> CustomFlask:
@@ -33,11 +33,11 @@ def create_app(*, debug: bool | None = None, test: bool = False) -> CustomFlask:
 
     # configuration
     if app.debug:
-        app.app_config = local_config.DebugLocalConfig.from_env()
+        app.app_config = app_config.DebugApplicationConfig.from_env()
     elif test:
-        app.app_config = local_config.TestConfig()
+        app.app_config = app_config.TestApplicationConfig()
     else:
-        app.app_config = local_config.LocalConfig.from_env()  # read config from env
+        app.app_config = app_config.ApplicationConfig.from_env()  # read config from env
 
     app.testing = os.environ.get("TESTING", test)
     if "FLASK_SECRET_KEY" not in os.environ and not debug:
