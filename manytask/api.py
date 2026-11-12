@@ -226,6 +226,7 @@ def report_score() -> ResponseReturnValue:
                 group_name=group.name,
                 at=course.deadlines.get_now_with_timezone() if action is not None else submit_time,
                 has_merge_request=merge_request_iid is not None,
+                events_table=course.events_table,
             )
         except ValueError as error:
             return str(error), 409

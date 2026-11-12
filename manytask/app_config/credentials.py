@@ -1,11 +1,15 @@
-import secrets
+import secrets as secrets_lib
 
 from pydantic import BaseModel
 
 
-class AppCredentialsConfig(BaseModel):
-    student_secret: str
-    admin_secret: str
+class AppSecretsConfig(BaseModel):
+    student: str
+    admin: str
 
-    flask_token: str = secrets.token_hex()
+
+class AppCredentialsConfig(BaseModel):
+    secrets: AppSecretsConfig
+
+    flask_token: str = secrets_lib.token_hex()
     tester_token: str

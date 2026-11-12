@@ -8,7 +8,6 @@ from .review import MANUAL_REVIEW_EVENTS, ReviewEvent, ReviewStage, ReviewState,
 from .spreadsheet import update_cells_request
 
 
-REVIEW_DETAILS_SHEET = "review_details"
 REVIEW_DETAILS_COLUMNS = (
     "login", "task", "group", "oral_attempts", "last_oral_review_at",
     "codereview_attempts", "last_codereview_at", "first_successful_submission_at",
@@ -52,21 +51,17 @@ class ReviewTimestamps:
 
 
 class ReviewDetailsSheet:
-    def __init__(self, spreadsheet: gspread.Spreadsheet):
-        self.spreadsheet = spreadsheet
-        try:
-            self.ws = spreadsheet.worksheet(REVIEW_DETAILS_SHEET)
-        except gspread.WorksheetNotFound:
-            self.ws = spreadsheet.add_worksheet(REVIEW_DETAILS_SHEET, rows=1000, cols=len(REVIEW_DETAILS_COLUMNS))
-        header = self.ws.row_values(1)
+    def __init__(self, worksheet: gspread.Worksheet):
+        self.worksheet = worksheet
+        header = self.worksheet.row_values(1)
         if not header:
-            self.ws.update_cells([gspread.Cell(1, column, name)
+            self.worksheet.update_cells([gspread.Cell(1, column, name)
                                   for column, name in enumerate(REVIEW_DETAILS_COLUMNS, 1)])
         elif tuple(header) != REVIEW_DETAILS_COLUMNS:
             raise ValueError("Unexpected review_details schema; refusing to overwrite it")
 
     def _read_timestamps(self, login: str, task: str) -> tuple[int, ReviewTimestamps]:
-        rows = self.ws.get_values()
+        rows = self.worksheet.get_values()
         matches = [(index, row) for index, row in enumerate(rows[1:], 2) if row[:2] == [login, task]]
         if len(matches) > 1:
             raise ValueError(f"Duplicate review_details key: {login}/{task}")
@@ -91,11 +86,11 @@ class ReviewDetailsSheet:
                   format_timestamp(dates.first_successful_submission_at),
                   format_timestamp(dates.last_successful_submission_at), state.stage.value, state.status.value]
         requests: list[dict[str, Any]] = []
-        if row > self.ws.row_count:
+        if row > self.worksheet.row_count:
             requests.append({"appendDimension": {
-                "sheetId": self.ws.id, "dimension": "ROWS", "length": row - self.ws.row_count,
+                "sheetId": self.worksheet.id, "dimension": "ROWS", "length": row - self.worksheet.row_count,
             }})
-        requests.append(update_cells_request(self.ws.id, row, 1, values))
+        requests.append(update_cells_request(self.worksheet.id, row, 1, values))
         return requests
 
     def record(
@@ -106,4 +101,4 @@ class ReviewDetailsSheet:
             return
         row, dates = self._read_timestamps(login, task)
         dates = dates.updated(event, old_state.stage, at)
-        self.spreadsheet.batch_update({"requests": self.write_requests(row, login, task, group, new_state, dates)})
+        self.worksheet.spreadsheet.batch_update({"requests": self.write_requests(row, login, task, group, new_state, dates)})

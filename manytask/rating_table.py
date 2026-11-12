@@ -104,6 +104,10 @@ class RatingTable:
         self._cache = cache
         self.ws = worksheet
 
+    @property
+    def url(self) -> str:
+        return self.ws.url
+
     def get_scores(
         self,
         username: str,
@@ -311,6 +315,7 @@ class RatingTable:
         at: datetime,
         has_merge_request: bool = False,
         review_stages: tuple[ReviewStage, ...] = DEFAULT_REVIEW_STAGES,
+        events_table: ReviewDetailsSheet,
     ) -> SubmissionStatus:
         if at.utcoffset() is None:
             raise ValueError("Review timestamps must include a timezone")
@@ -351,7 +356,7 @@ class RatingTable:
         self.update_scores(student.username, scores)
         self.update_reviews(student.username, reviews)
         try:
-            ReviewDetailsSheet(self.ws.spreadsheet).record(
+            events_table.record(
                 student.username, task_name, group_name, old_state, new_state, event, at,
             )
         except Exception:

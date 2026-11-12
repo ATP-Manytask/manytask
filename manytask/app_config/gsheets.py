@@ -5,11 +5,17 @@ import json
 from pydantic import AnyUrl, BaseModel, field_validator
 
 
+class AppWorksheetsNames(BaseModel):
+    scoreboard: str
+    events: str
+
+
 class AppGSheetsConfig(BaseModel):
     base_url: AnyUrl
     credentials_base64: str  # base64 encoded json
     spreadsheet_id: str
-    scoreboard_sheet: int
+
+    sheets: AppWorksheetsNames
 
     show_allscores: bool = True
 

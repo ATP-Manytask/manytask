@@ -1,8 +1,9 @@
 version: 1
 
 credentials:
-  students_secret:
-  admin_secret:
+  secrets:
+    student:
+    admin:
 
   flask_token:
   tester_token:
@@ -23,9 +24,11 @@ gitlab:
 gsheets:
   base_url: https://docs.google.com
   credentials_base64:
-
   spreadsheet_id:
-  scoreboard_sheet:
+
+  sheets:
+    scoreboard:
+    events:
 
   show_allscores:
 
