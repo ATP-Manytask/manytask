@@ -125,7 +125,7 @@ class RatingTable:
     ) -> None:
         updated_reviewers = []
         if check_order:
-            current_reviewers = self._get_reviewers_queue()
+            current_reviewers = self.get_reviewers_queue()
             preserved_reviewers = [
                 name for name in current_reviewers if name in reviewers]
             new_reviewers = [name for name in reviewers if not (
@@ -138,7 +138,7 @@ class RatingTable:
     def pop_reviewer(
         self,
     ) -> str | None:
-        current_reviewers = self._get_reviewers_queue()
+        current_reviewers = self.get_reviewers_queue()
         if not current_reviewers:
             return None
         logger.info(f"Reviewers order = {current_reviewers}")
@@ -147,7 +147,7 @@ class RatingTable:
             current_reviewers[1:] + [reviewer], check_order=False)
         return reviewer
 
-    def _get_reviewers_queue(
+    def get_reviewers_queue(
         self,
     ) -> list[str]:
         reviewers = self._cache.get(f"{self.ws.id}:reviewers")

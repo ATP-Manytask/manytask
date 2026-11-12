@@ -31,6 +31,7 @@ class Student:
     id: int
     username: str
     name: str
+    course_reviewer: bool = False
     course_admin: bool = False
     repo: str | None = field(default=None)
 
@@ -265,46 +266,60 @@ class GitLabApi:
         merge_request.reviewer_ids = [reviewer.id]
         merge_request.save()
 
-    def list_reviewers(
-        self
-    ) -> list[str]:
-        course_students_group = self._get_group_by_name(self._course_students_group)
-        reviewers = []
-        for member in course_students_group.members.list(iterator=True):
-            if "_bot_" in member.username:
-                continue
-            if member.access_level == gitlab.const.AccessLevel.MAINTAINER:
-                reviewers.append(member.username)
-        # logger.info(f"Found reviewers: {reviewers}")
-        return reviewers
-
-    def make_reviewer(
+    def grant_students_group_access_level(
         self,
         student: Student,
+        level: gitlab.const.AccessLevel,
+        level_name: str,
     ) -> None:
         course_students_group = self._get_group_by_name(self._course_students_group)
         try:
             member = course_students_group.members.create(
                 {
                     "user_id": student.id,
-                    "access_level": gitlab.const.AccessLevel.MAINTAINER,
+                    "access_level": level,
                 }
             )
-            logger.info(f"Admin access is granted to group {self._course_students_group} for user {member.username}")
+            logger.info(f"{level_name} access is granted to group {self._course_students_group} for user {member.username}")
         except gitlab.GitlabCreateError:
-            logger.info(f"Admin access is already granted to group {self._course_students_group} for user {student.username}")
+            logger.info(f"{level_name} access is already granted to group {self._course_students_group} for user {student.username}")
 
-    def is_reviewer(
+    def _has_students_group_access_level(
         self,
-        student: Student,
+        user_id: int,
+        level: gitlab.const.AccessLevel,
     ) -> bool:
         course_students_group = self._get_group_by_name(self._course_students_group)
         try:
-            member = course_students_group.members.get(student.id)
-            return member._attrs["access_level"] >= gitlab.const.AccessLevel.MAINTAINER
+            member = course_students_group.members.get(user_id)
+            return member._attrs["access_level"] == level
         except gitlab.GitlabGetError:
-            logger.info(f"Cannot get user with id {student.id} from group {self._course_students_group}")
+            logger.info(f"Cannot get user with id {user_id} from group {self._course_students_group}")
             return False
+        
+
+    def make_reviewer(
+        self,
+        student: Student,
+    ) -> None:
+        self.grant_students_group_access_level(
+            student, 
+            gitlab.const.AccessLevel(gitlab.const.AccessLevel.MAINTAINER), 
+            "Maintainer"
+        )
+
+    def make_admin(
+        self,
+        student: Student,
+    ) -> None:
+        self.grant_students_group_access_level(
+            student, 
+            gitlab.const.AccessLevel(gitlab.const.AccessLevel.OWNER), 
+            "Owner"
+        )
+
+    def is_admin(self, user_id: int) -> bool:
+        return self._has_students_group_access_level(user_id, gitlab.const.AccessLevel(gitlab.const.AccessLevel.OWNER))
 
 
     def create_project(
@@ -400,18 +415,6 @@ class GitLabApi:
         except gitlab.GitlabCreateError:
             logger.info(f"Access is already granted for {student.username} on new fork")
 
-    def _check_is_course_admin(self, user_id: int) -> bool:
-        try:
-            admin_group = self._get_group_by_name(self._course_group)
-            admin_group_member = admin_group.members_all.get(user_id)
-        except Exception:
-            return False
-
-        if not admin_group_member:
-            return False
-
-        return True
-
     def _parse_user_to_student(
         self,
         user: dict[str, Any],
@@ -421,7 +424,7 @@ class GitLabApi:
             username=user["username"],
             name=user["name"],
             repo=self.get_url_for_repo(user["username"]),
-            course_admin=self._check_is_course_admin(user["id"]),
+            course_admin=self.is_admin(user["id"]),
         )
 
     def get_students_by_username(

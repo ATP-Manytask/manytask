@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class AppSecretsConfig(BaseModel):
     student: str
+    reviewer: str
     admin: str
 
 

@@ -8,6 +8,7 @@ from pydantic import AnyUrl, BaseModel, field_validator
 class AppWorksheetsNames(BaseModel):
     scoreboard: str
     events: str
+    reviewers: str
 
 
 class AppGSheetsConfig(BaseModel):

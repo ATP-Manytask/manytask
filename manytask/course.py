@@ -116,3 +116,9 @@ class Course:
         return ReviewDetailsSheet(
             self.googledoc_api.get_worksheet(self.worksheets_names.events), 
         )
+
+    @property
+    def reviewers_table(self) -> "ReviewersTable":
+        return ReviewersTable(
+            self.googledoc_api.get_worksheet(self.worksheets_names.reviewers),
+        )
