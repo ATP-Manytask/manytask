@@ -52,15 +52,15 @@ So basically, manytask will store and display grades for you, but not test solut
 git clone https://github.com/yandexdataschool/manytask
 ```
 
-2. Create `.env` file with dev environment
+2. Copy the application configuration template and fill in `app.config.yaml`
 ```shell
-cp .env.example .env
+cp .app.config.example.yaml app.config.yaml
 ```
 
 3. Generate credentials for accessing google spreadsheets API (for [this test table](https://docs.google.com/spreadsheets/d/1cRah9NC5Nl7_NyzttC3Q5BtrnbdO6KyaG7gx5ZGusTM/edit#gid=0))
     1. Follow the steps described in [this article](https://medium.com/@a.marenkov/how-to-get-credentials-for-google-sheets-456b7e88c430)
     2. Base64 encode the created JSON key (using tools online, `base64` lib in python, or `btoa` function in the browser)
-    3. Put it in the .env file by GDOC_ACCOUNT_CREDENTIALS_BASE64 key
+    3. Set `gsheets.credentials_base64` to the encoded JSON key.
 
 
 ### Production
@@ -72,14 +72,14 @@ Please refer to the [system setup documentation](./docs/system_setup.md).
 
 ### Debug and development 
 
-First you need to create `.env` file with debug environment
+Set `credentials.flask_token` to a stable random value. You can generate it with `python -c "import secrets; print(secrets.token_hex(32))"`.
 
 * gitlab oauth credentials can be taken from `test` app here: [gitlab.manytask.org/admin/applications](https://gitlab.manytask.org/admin/applications/)
 
 
 #### Local (manytask only)
 
-Create new venv and install requirements 
+Set `mount.cache` and `mount.solutions` to directories writable by your local user, such as `.tmp/cache` and `.tmp/solutions`. Create a virtual environment and install requirements.
 ```shell
 python -m venv .venv
 source .venv/bin/activate
@@ -101,7 +101,7 @@ docker run \
     --name manytask \
     --restart always \
     --publish "5050:5050" \
-    --env-file .env \
+    --volume "$PWD/app.config.yaml:/app/app.config.yaml:ro" \
     --env FLASK_DEBUG=1 \
     manytask:latest
 ```
@@ -133,7 +133,7 @@ More info in the [yandexdataschool/checker repo](https://github.com/yandexdatasc
 ### Custom script 
 However, you can implement your own checker just following `manytask` api:
 
-* All the endpoints require `Authorization: Bearer <token>` or `Authorization: <token>` (deprecated) header contain `TESTER_TOKEN`, to validate it's authorized checker. 
+* All the endpoints require `Authorization: Bearer <token>` or `Authorization: <token>` (deprecated) header containing the configured `credentials.tester_token`, to validate it's authorized checker.
 * Or, alternatively, being admin (session with admin field) 
   
 | method | api endpoint                | description                                       | required in body                                                          | optional in body                                                                                                      | return                                                               |

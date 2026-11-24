@@ -29,6 +29,7 @@ def valid_session(user_session: flask.sessions.SessionMixin) -> bool:
         and "username" in user_session["gitlab"]
         and "user_id" in user_session["gitlab"]
         and "repo" in user_session["gitlab"]
+        and "course_reviewer" in user_session["gitlab"]
         and "course_admin" in user_session["gitlab"]
     )
 
@@ -51,12 +52,14 @@ def course_page() -> ResponseReturnValue:
     if current_app.debug:
         student_username = "guest"
         student_repo = course.gitlab_api.get_url_for_repo(student_username)
+        student_course_reviewer = False
         student_course_admin = True  # request.args.get('admin', None) is not None
     else:
         if not valid_session(session):
             return redirect(url_for("web.signup"))
         student_username = session["gitlab"]["username"]
         student_repo = session["gitlab"]["repo"]
+        student_course_reviewer = session["gitlab"]["course_reviewer"]
         student_course_admin = session["gitlab"]["course_admin"]
 
     rating_table = course.rating_table
@@ -85,7 +88,7 @@ def course_page() -> ResponseReturnValue:
         course_name=course.name,
         current_course=course,
         gitlab_url=course.gitlab_api.base_url,
-        gdoc_url=course.googledoc_api.get_spreadsheet_url(),
+        gdoc_url=course.googledoc_api.get_spreadsheet_url(rating_table.ws.id),
         show_allscores=course.show_allscores,
         student_repo_url=student_repo,
         student_ci_url=f"{student_repo}/pipelines",
@@ -99,6 +102,7 @@ def course_page() -> ResponseReturnValue:
         now=get_current_time(),
         task_stats=tasks_stats,
         course_favicon=course.favicon,
+        is_course_reviewer=student_course_reviewer,
         is_course_admin=student_course_admin,
         cache_time=cache_delta,
     )
@@ -177,8 +181,7 @@ def signup() -> ResponseReturnValue:
     )
 
     try:
-        if not secrets.compare_digest(request.form["secret"], course.registration_secret) and \
-            not secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+        if course.secrets.role_for(request.form["secret"]) is None:
             raise Exception("Invalid registration secret")
         if not secrets.compare_digest(request.form["password"], request.form["password2"]):
             raise Exception("Passwords don't match")
@@ -241,6 +244,7 @@ def login_finish() -> ResponseReturnValue:
         "oauth_refresh_token": gitlab_refresh_token,
         "username": student.username,
         "user_id": student.id,
+        "course_reviewer": course.reviewers_table.is_reviewer(student),
         "course_admin": student.course_admin,
         "repo": student.repo,
         "version": SESSION_VERSION,
@@ -271,8 +275,8 @@ def create_project() -> ResponseReturnValue:
             manytask_version=course.manytask_version,
         )
 
-    if not secrets.compare_digest(request.form["secret"], course.registration_secret) and \
-        not secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+    role = course.secrets.role_for(request.form["secret"])
+    if role is None:
         logger.warning("Wrong registration secret when creating project")
         return render_template(
             "create_project.html",
@@ -284,8 +288,13 @@ def create_project() -> ResponseReturnValue:
 
     gitlab_access_token: str = session["gitlab"]["oauth_access_token"]
     student = course.gitlab_api.get_authenticated_student(gitlab_access_token)
-    if secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+    if role == "admin":
+        course.gitlab_api.make_admin(student)
+        session["gitlab"] = {**session["gitlab"], "course_admin": True}
+    elif role == "reviewer":
         course.gitlab_api.make_reviewer(student)
+        course.reviewers_table.make_reviewer(student)
+        session["gitlab"] = {**session["gitlab"], "course_reviewer": True}
 
     # Create use if needed
     try:

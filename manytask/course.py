@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from functools import cached_property
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from cachelib import BaseCache
 
+from .app_config import AppSecretsConfig, AppWorksheetsNames
 from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
+from .gdoc import GoogleDocApi
+from .glab import GitLabApi
+from .reviewers_table import ReviewersTable
+from .solutions import SolutionsApi
 
 
 logger = logging.getLogger(__name__)
@@ -37,17 +43,17 @@ def validate_submit_time(commit_time: datetime | None, current_time: datetime) -
     return current_time
 
 
-from . import gdoc, glab, rating_table, solutions  # noqa: E402, F401
+from .rating_table import RatingTable  # noqa: E402
 
 
 class Course:
     def __init__(
         self,
-        googledoc_api: gdoc.GoogleDocApi,
-        gitlab_api: glab.GitLabApi,
-        solutions_api: solutions.SolutionsApi,
-        registration_secret: str,
-        admin_registration_secret: str,
+        googledoc_api: GoogleDocApi,
+        gitlab_api: GitLabApi,
+        solutions_api: SolutionsApi,
+        secrets: AppSecretsConfig,
+        worksheets_names: AppWorksheetsNames,
         show_allscores: bool,
         cache: BaseCache,
         manytask_version: str | None = None,
@@ -58,8 +64,8 @@ class Course:
         self.gitlab_api = gitlab_api
         self.solutions_api = solutions_api
 
-        self.registration_secret = registration_secret
-        self.admin_registration_secret = admin_registration_secret
+        self.secrets = secrets
+        self.worksheets_names = worksheets_names
 
         self.show_allscores = show_allscores
 
@@ -100,6 +106,16 @@ class Course:
         ManytaskConfig(**content)
         self._cache.set("__config__", content)
 
+    @cached_property
+    def rating_table(self) -> "RatingTable":
+        return RatingTable(
+            self.googledoc_api.get_worksheet(self.worksheets_names.scoreboard),
+            self._cache,
+            self.worksheets_names.events,
+        )
+
     @property
-    def rating_table(self) -> "rating_table.RatingTable":
-        return self.googledoc_api.fetch_rating_table()
+    def reviewers_table(self) -> "ReviewersTable":
+        return ReviewersTable(
+            self.googledoc_api.spreadsheet, self.worksheets_names.reviewers,
+        )

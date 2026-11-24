@@ -25,7 +25,7 @@ COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/pytho
 COPY ./manytask/ /app/manytask
 COPY VERSION /app/VERSION
 
-ENV CACHE_DIR=/cache SOLUTIONS_DIR=/solutions PYTHONPATH="${PYTHONPATH}:/app:/app/manytask"
+ENV PYTHONPATH="${PYTHONPATH}:/app:/app/manytask"
 VOLUME ["/cache", "/solutions"]
 
 EXPOSE 5050

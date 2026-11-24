@@ -7,24 +7,24 @@ import yaml
 from flask import Flask
 
 from manytask.review import MANUAL_REVIEW_EVENTS
+from manytask.reviewers_table import ReviewersTable
 from tests.sheets import course_config, student
 from tests.test_review_storage import table  # noqa: F401
 
 
 @pytest.fixture
-def api(monkeypatch, table):
-    monkeypatch.setenv('TESTER_TOKEN', 'test-token')
+def api(table):
     from manytask import api as module
-    monkeypatch.setattr(module, 'TESTER_TOKEN', 'test-token')
     config = course_config()
     app = Flask(__name__)
     app.config['TESTING'] = True
+    app.app_config = SimpleNamespace(credentials=SimpleNamespace(tester_token='test-token'))
     gitlab = Mock()
     gitlab.get_student_by_username.side_effect = student
-    gitlab.is_reviewer.side_effect = lambda s: s.username == 'assistant'
-    gitlab.list_reviewers.return_value = ['assistant']
+    reviewers = ReviewersTable(table.ws.spreadsheet, "reviewers")
+    reviewers.make_reviewer(student("assistant"))
     app.course = SimpleNamespace(config=config, deadlines=config.deadlines, rating_table=table,
-                                 gitlab_api=gitlab, solutions_api=Mock())
+                                 gitlab_api=gitlab, solutions_api=Mock(), reviewers_table=reviewers)
     app.register_blueprint(module.bp)
     return app.test_client(), app.course
 
@@ -56,7 +56,7 @@ def test_empty_mr_does_not_start_review(api, mr):
     api[1].rating_table.ws.spreadsheet.batch_update.reset_mock()
     assert report(api, request_type='request_oral', reported_by='assistant').status_code == 409
     api[1].rating_table.ws.spreadsheet.batch_update.assert_not_called()
-    api[1].gitlab_api.list_reviewers.assert_not_called()
+    assert api[1].rating_table.get_reviewers_queue() == []
 
 
 @pytest.mark.parametrize('score', ['0', '5', '0.5'])
@@ -119,7 +119,7 @@ def test_summary_failure_after_acceptance_is_still_success(api):
 
 def test_api_preserves_instants_and_uses_server_time_for_manual_review(api, monkeypatch):
     from datetime import datetime, timezone
-    from manytask.config import ManytaskDeadlinesConfig
+    from manytask.course_config.config import ManytaskDeadlinesConfig
     from manytask.review_sheet import REVIEW_DETAILS_COLUMNS
     now = datetime(2026, 1, 3, tzinfo=timezone.utc)
     monkeypatch.setattr(ManytaskDeadlinesConfig, 'get_now_with_timezone', lambda _: now)
@@ -176,3 +176,10 @@ def test_disabled_stage_api_error_has_no_writes(api, stage, forbidden):
     assert result.status_code == 409
     assert 'disabled' in result.text
     workbook.batch_update.assert_not_called()
+
+
+def test_removed_reviewer_cannot_authorize_from_cached_queue(api):
+    _, course = api
+    course.rating_table.update_reviewers_list(['assistant'])
+    course.reviewers_table.worksheet.rows[1:] = []
+    assert report(api, request_type='accept', reported_by='assistant').status_code == 403

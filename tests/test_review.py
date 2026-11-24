@@ -3,7 +3,7 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from manytask.config import ManytaskDeadlinesConfig
+from manytask.course_config.config import ManytaskDeadlinesConfig
 from manytask.review import MANUAL_REVIEW_EVENTS, ReviewEvent as E, ReviewStage as Stage, ReviewState, ReviewStatus as S
 from manytask.review import transition
 
@@ -174,14 +174,14 @@ def test_disabling_current_stage_requires_explicit_state_resolution(status, even
 @pytest.mark.parametrize('stages', [[], ['oral', 'oral'], ['codereview', 'codereview'], ['unknown'],
                                     ['oral', 'codereview', 'oral'], None, 'oral'])
 def test_invalid_task_review_configuration(stages):
-    from manytask.config import ManytaskTaskConfig
+    from manytask.course_config.config import ManytaskTaskConfig
     with pytest.raises(ValidationError):
         ManytaskTaskConfig(task='task', score=10, review_stages=stages)
 
 
 @pytest.mark.parametrize('stages', [['oral'], ['codereview'], ['oral', 'codereview'], ['codereview', 'oral']])
 def test_task_review_configuration_roundtrip(stages):
-    from manytask.config import ManytaskTaskConfig
+    from manytask.course_config.config import ManytaskTaskConfig
     task = ManytaskTaskConfig(task='task', score=10, review_stages=stages)
     assert task.review_stages == tuple(Stage(s) for s in stages)
     assert ManytaskTaskConfig.model_validate_json(task.model_dump_json()) == task

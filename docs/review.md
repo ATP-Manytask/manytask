@@ -197,3 +197,17 @@ Update course YAML before deploying this version. The exact legacy
 `review_details` header is migrated automatically, including `written` stage
 values, without changing counts or timestamps. Unknown schemas are rejected.
 Sheet synchronization renames existing `written` subheaders in place.
+
+
+## Reviewer enrollment
+
+Set distinct student, reviewer, and admin registration secrets in
+`credentials.secrets` in `app.config.yaml`. When creating a project, the
+reviewer secret grants Maintainer access to the GitLab students group and
+adds the user's login and name to the worksheet named by
+`gsheets.sheets.reviewers`. The admin secret grants Owner access.
+
+Manytask creates the reviewer worksheet on first use. Give write access only
+to course administrators and the service account. To migrate existing reviewers,
+add their GitLab logins to the `login` column. Removing a login revokes manual
+review authorization. GitLab group membership is managed separately.

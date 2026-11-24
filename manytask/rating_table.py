@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import re
-
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,11 +12,11 @@ from cachelib import BaseCache
 from gspread import Worksheet
 from gspread.utils import ValueInputOption, ValueRenderOption, a1_to_rowcol, absolute_range_name
 
-from .config import ManytaskConfig, ManytaskDeadlinesConfig
 from .course import get_current_time
+from .course_config.config import ManytaskConfig, ManytaskDeadlinesConfig
 from .glab import Student
 from .review import DEFAULT_REVIEW_STAGES, ReviewEvent, ReviewStage, ReviewState, ReviewStatus, transition
-from .review_sheet import ReviewDetailsSheet
+from .review_sheet import REVIEW_DETAILS_SHEET, ReviewDetailsSheet
 from .spreadsheet import update_cells_request
 
 
@@ -100,8 +99,10 @@ class RatingTable:
         self,
         worksheet: Worksheet,
         cache: BaseCache,
+        events_sheet: str = REVIEW_DETAILS_SHEET,
     ):
         self._cache = cache
+        self.events_sheet = events_sheet
         self.ws = worksheet
 
     def get_scores(
@@ -121,7 +122,7 @@ class RatingTable:
     ) -> None:
         updated_reviewers = []
         if check_order:
-            current_reviewers = self._get_reviewers_queue()
+            current_reviewers = self.get_reviewers_queue()
             preserved_reviewers = [
                 name for name in current_reviewers if name in reviewers]
             new_reviewers = [name for name in reviewers if not (
@@ -134,7 +135,7 @@ class RatingTable:
     def pop_reviewer(
         self,
     ) -> str | None:
-        current_reviewers = self._get_reviewers_queue()
+        current_reviewers = self.get_reviewers_queue()
         if not current_reviewers:
             return None
         logger.info(f"Reviewers order = {current_reviewers}")
@@ -143,7 +144,7 @@ class RatingTable:
             current_reviewers[1:] + [reviewer], check_order=False)
         return reviewer
 
-    def _get_reviewers_queue(
+    def get_reviewers_queue(
         self,
     ) -> list[str]:
         reviewers = self._cache.get(f"{self.ws.id}:reviewers")
@@ -351,7 +352,7 @@ class RatingTable:
         self.update_scores(student.username, scores)
         self.update_reviews(student.username, reviews)
         try:
-            ReviewDetailsSheet(self.ws.spreadsheet).record(
+            ReviewDetailsSheet(self.ws.spreadsheet, self.events_sheet).record(
                 student.username, task_name, group_name, old_state, new_state, event, at,
             )
         except Exception:
