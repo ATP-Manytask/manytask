@@ -189,3 +189,10 @@ def test_invalid_main_state_never_reads_summary(table):
     with pytest.raises(ValueError):
         submit(table)
     table.ws.spreadsheet.worksheet.assert_not_called()
+
+
+def test_submission_writes_to_configured_events_sheet(table):
+    table.events_sheet = 'course review events'
+    submit(table, has_merge_request=True)
+    assert table.ws.spreadsheet.worksheet(table.events_sheet).rows[1][:2] == ['alice', 'task']
+    assert 'review_details' not in table.ws.spreadsheet.sheets

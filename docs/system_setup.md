@@ -79,7 +79,7 @@ Manytask currently operates only with self-hosted gitlab instance (to easily cre
 
 3. Create test gitlab oauth credentials in [gitlab admin area -> applications](https://gitlab.manytask.org/admin/applications/) with `api`, `sudo`, `profile` and `openid`  
    Or copy existed one (known by any gitlab admin: @k4black, @slon, @vadim_mazaev, etc.)  
-   save it to `.env` file to future use
+   save it in `app.config.yaml` as `gitlab.admin_token`
 
 
 ### General
@@ -176,7 +176,7 @@ The following steps you need to take **each semester** (each new course with new
 ### Gitlab
 
 You need to create a public repository with students assignments and group where students' repo will be stored.  
-(Students' repos will be created by manytask automatically, but you should update `.env` file with repo and group names)
+(Students' repos will be created by manytask automatically, but you should set the repository and group names in the `gitlab` section of `app.config.yaml`)
 
 
 1. Create public (or internal) repository with course assignments (to fork students repo from)

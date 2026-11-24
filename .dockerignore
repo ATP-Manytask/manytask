@@ -8,6 +8,7 @@
 .github
 
 *.env
+app.config.yaml
 
 venv
 .venv

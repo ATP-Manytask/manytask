@@ -85,7 +85,7 @@ def course_page() -> ResponseReturnValue:
         course_name=course.name,
         current_course=course,
         gitlab_url=course.gitlab_api.base_url,
-        gdoc_url=course.googledoc_api.get_spreadsheet_url(),
+        gdoc_url=course.googledoc_api.get_spreadsheet_url(rating_table.ws.id),
         show_allscores=course.show_allscores,
         student_repo_url=student_repo,
         student_ci_url=f"{student_repo}/pipelines",
@@ -177,8 +177,8 @@ def signup() -> ResponseReturnValue:
     )
 
     try:
-        if not secrets.compare_digest(request.form["secret"], course.registration_secret) and \
-            not secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+        if not secrets.compare_digest(request.form["secret"], course.secrets.student) and \
+            not secrets.compare_digest(request.form["secret"], course.secrets.admin):
             raise Exception("Invalid registration secret")
         if not secrets.compare_digest(request.form["password"], request.form["password2"]):
             raise Exception("Passwords don't match")
@@ -271,8 +271,8 @@ def create_project() -> ResponseReturnValue:
             manytask_version=course.manytask_version,
         )
 
-    if not secrets.compare_digest(request.form["secret"], course.registration_secret) and \
-        not secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+    if not secrets.compare_digest(request.form["secret"], course.secrets.student) and \
+        not secrets.compare_digest(request.form["secret"], course.secrets.admin):
         logger.warning("Wrong registration secret when creating project")
         return render_template(
             "create_project.html",
@@ -284,7 +284,7 @@ def create_project() -> ResponseReturnValue:
 
     gitlab_access_token: str = session["gitlab"]["oauth_access_token"]
     student = course.gitlab_api.get_authenticated_student(gitlab_access_token)
-    if secrets.compare_digest(request.form["secret"], course.admin_registration_secret):
+    if secrets.compare_digest(request.form["secret"], course.secrets.admin):
         course.gitlab_api.make_reviewer(student)
 
     # Create use if needed

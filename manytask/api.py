@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import os
 import secrets
 import tempfile
 from datetime import datetime, timedelta
@@ -25,17 +24,13 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("api", __name__, url_prefix="/api")
 
 
-TESTER_TOKEN = os.environ["TESTER_TOKEN"]
-
-
 def requires_token(f: Callable[..., Any]) -> Callable[..., Any]:
     @functools.wraps(f)
     def decorated(*args: Any, **kwargs: Any) -> Any:
         token = request.form.get("token", request.headers.get("Authorization", ""))
-        if not token:
-            abort(403)
-        token = token.split()[-1]
-        if not secrets.compare_digest(token, TESTER_TOKEN):
+        parts = token.split()
+        expected_token = current_app.app_config.credentials.tester_token  # type: ignore[attr-defined]
+        if not parts or not secrets.compare_digest(parts[-1].encode(), expected_token.encode()):
             abort(403)
 
         return f(*args, **kwargs)
