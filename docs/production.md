@@ -34,14 +34,14 @@ Here is the way you can go if you have 1 server with 1 manytask instance (1 cour
 
    See [docker-compose.production.yml](../docker-compose.production.yml) file as an example  
    ```shell
-   curl -JL https://raw.githubusercontent.com/yandexdataschool/manytask/main/docker-compose.development.yml -o docker-compose.yml 
+   curl -JL https://raw.githubusercontent.com/yandexdataschool/manytask/main/docker-compose.production.yml -o docker-compose.yml
    ```
 
-2. Create `.env` file with production environment  
+2. Create and fill in `app.config.yaml`
 
-   See [.env.example](../.env.example) as an example
+   See [.app.config.example.yaml](../.app.config.example.yaml) as an example
    ```shell
-   curl -JL https://raw.githubusercontent.com/yandexdataschool/manytask/main/.env.example -o .env
+   curl -JL https://raw.githubusercontent.com/yandexdataschool/manytask/main/.app.config.example.yaml -o app.config.yaml
    ```
 
 3. Setup `nginx-proxy`/`letencrypt`/`certbot` to update https certificates automatically  
@@ -58,10 +58,10 @@ You can use this repo to set up manytask in production mode
     git clone https://github.com/yandexdataschool/manytask
     ```
    
-2. Copy and fill `.env` file
+2. Copy and fill in `app.config.yaml`
     ```shell
-    cp .env.example .env
-    nano .env
+    cp .app.config.example.yaml app.config.yaml
+    nano app.config.yaml
     ```
 
 #### Docker build (manytask only)
@@ -73,7 +73,7 @@ docker run \
     --name manytask \
     --restart always \
     --publish "5050:5050" \
-    --env-file .env \
+    --volume "$PWD/app.config.yaml:/app/app.config.yaml:ro" \
     manytask:build && docker logs -f manytask
 ```
 
@@ -86,7 +86,7 @@ docker run \
     --name manytask \
     --restart always \
     --publish "5050:5050" \
-    --env-file .env \
+    --volume "$PWD/app.config.yaml:/app/app.config.yaml:ro" \
     manytask:latest && docker logs -f manytask
 ```
 
@@ -108,4 +108,4 @@ Here is how you can make it
 curl --fail --silent -X POST -H "Authorization: Bearer $TESTER_TOKEN" -H        
      "Content-type: application/x-yaml" --data-binary "@tests/.manytask.test.yml" "https://py.manytask.org/api/update_config"
 ```
-Please, refer to the example files and api docs. 
+Please, refer to the example files and api docs.
